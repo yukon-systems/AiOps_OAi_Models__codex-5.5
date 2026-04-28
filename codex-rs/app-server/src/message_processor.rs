@@ -653,14 +653,12 @@ impl MessageProcessor {
                     }
                 }
             }
-            if self.config.features.enabled(Feature::GeneralAnalytics) {
-                self.analytics_events_client.track_initialize(
-                    connection_id.0,
-                    analytics_initialize_params,
-                    originator,
-                    self.rpc_transport,
-                );
-            }
+            self.analytics_events_client.track_initialize(
+                connection_id.0,
+                analytics_initialize_params,
+                originator,
+                self.rpc_transport,
+            );
             set_default_client_residency_requirement(self.config.enforce_residency.value());
             if let Ok(mut suffix) = USER_AGENT_SUFFIX.lock() {
                 *suffix = Some(user_agent_suffix);
@@ -716,9 +714,8 @@ impl MessageProcessor {
             return Err(invalid_request(experimental_required_message(reason)));
         }
         let connection_id = connection_request_id.connection_id;
-        if self.config.features.enabled(Feature::GeneralAnalytics)
-            && let ClientRequest::TurnStart { request_id, .. }
-            | ClientRequest::TurnSteer { request_id, .. } = &codex_request
+        if let ClientRequest::TurnStart { request_id, .. }
+        | ClientRequest::TurnSteer { request_id, .. } = &codex_request
         {
             self.analytics_events_client.track_request(
                 connection_id.0,
@@ -1141,10 +1138,20 @@ impl MessageProcessor {
                 ExternalAgentConfigMigrationItemType::Plugins
             )
         });
-
+        let pending_session_imports = self
+            .external_agent_config_api
+            .prepare_pending_session_imports(&params)?;
         let pending_plugin_imports = self.external_agent_config_api.import(params).await?;
         if has_plugin_imports {
             self.handle_config_mutation().await;
+        }
+        for pending_session_import in pending_session_imports {
+            let imported_thread_id = self
+                .codex_message_processor
+                .import_external_agent_session(pending_session_import.session)
+                .await?;
+            self.external_agent_config_api
+                .record_imported_session(&pending_session_import.source_path, imported_thread_id);
         }
         self.outgoing
             .send_response(request_id, ExternalAgentConfigImportResponse {})
