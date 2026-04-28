@@ -42,7 +42,6 @@ use codex_app_server_protocol::CancelLoginAccountParams;
 use codex_app_server_protocol::CancelLoginAccountResponse;
 use codex_app_server_protocol::CancelLoginAccountStatus;
 use codex_app_server_protocol::ClientRequest;
-use codex_app_server_protocol::ClientResponse;
 use codex_app_server_protocol::ClientResponsePayload;
 use codex_app_server_protocol::CodexErrorInfo;
 use codex_app_server_protocol::CollaborationModeListParams;
@@ -2820,15 +2819,6 @@ impl CodexMessageProcessor {
         match result {
             Ok((response, notif)) => {
                 listener_task_context
-                    .analytics_events_client
-                    .track_response(
-                        request_id.connection_id.0,
-                        ClientResponse::ThreadStart {
-                            request_id: request_id.request_id.clone(),
-                            response: response.clone(),
-                        },
-                    );
-                listener_task_context
                     .outgoing
                     .send_response(request_id, response)
                     .instrument(tracing::info_span!(
@@ -4364,13 +4354,6 @@ impl CodexMessageProcessor {
                     reasoning_effort: session_configured.reasoning_effort,
                 };
 
-                self.analytics_events_client.track_response(
-                    request_id.connection_id.0,
-                    ClientResponse::ThreadResume {
-                        request_id: request_id.request_id.clone(),
-                        response: response.clone(),
-                    },
-                );
                 let connection_id = request_id.connection_id;
                 let token_usage_thread = include_turns.then(|| response.thread.clone());
                 self.outgoing.send_response(request_id, response).await;
@@ -4981,13 +4964,6 @@ impl CodexMessageProcessor {
                 return;
             }
         };
-        self.analytics_events_client.track_response(
-            request_id.connection_id.0,
-            ClientResponse::ThreadFork {
-                request_id: request_id.request_id.clone(),
-                response: response.clone(),
-            },
-        );
         let connection_id = request_id.connection_id;
         let token_usage_thread = include_turns.then(|| response.thread.clone());
         self.outgoing.send_response(request_id, response).await;
@@ -6606,13 +6582,6 @@ impl CodexMessageProcessor {
 
         match result {
             Ok(response) => {
-                self.analytics_events_client.track_response(
-                    request_id.connection_id.0,
-                    ClientResponse::TurnStart {
-                        request_id: request_id.request_id.clone(),
-                        response: response.clone(),
-                    },
-                );
                 self.outgoing.send_response(request_id, response).await;
             }
             Err(error) => {
@@ -6783,13 +6752,6 @@ impl CodexMessageProcessor {
 
         match result {
             Ok(response) => {
-                self.analytics_events_client.track_response(
-                    request_id.connection_id.0,
-                    ClientResponse::TurnSteer {
-                        request_id: request_id.request_id.clone(),
-                        response: response.clone(),
-                    },
-                );
                 self.outgoing.send_response(request_id, response).await;
             }
             Err(error) => {
