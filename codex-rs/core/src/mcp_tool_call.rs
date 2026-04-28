@@ -37,6 +37,7 @@ use codex_analytics::AppInvocation;
 use codex_analytics::InvocationType;
 use codex_analytics::build_track_events_context;
 use codex_config::types::AppToolApproval;
+use codex_config::types::ApprovalsReviewer;
 use codex_features::Feature;
 use codex_hooks::PermissionRequestDecision;
 use codex_mcp::CODEX_APPS_MCP_SERVER_NAME;
@@ -885,6 +886,12 @@ async fn maybe_request_mcp_tool_approval(
         turn_context.approval_policy.value(),
         &turn_context.permission_profile(),
     ) {
+        return None;
+    }
+
+    if approval_mode == AppToolApproval::Approve
+        && turn_context.config.approvals_reviewer == ApprovalsReviewer::AutoReview
+    {
         return None;
     }
 
