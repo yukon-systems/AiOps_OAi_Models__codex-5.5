@@ -204,12 +204,48 @@ async fn rate_limit_warnings_emit_thresholds() {
     let mut state = RateLimitWarningState::default();
     let mut warnings: Vec<String> = Vec::new();
 
-    warnings.extend(state.take_warnings(Some(10.0), Some(10079), Some(55.0), Some(299)));
-    warnings.extend(state.take_warnings(Some(55.0), Some(10081), Some(10.0), Some(299)));
-    warnings.extend(state.take_warnings(Some(10.0), Some(10081), Some(80.0), Some(299)));
-    warnings.extend(state.take_warnings(Some(80.0), Some(10081), Some(10.0), Some(299)));
-    warnings.extend(state.take_warnings(Some(10.0), Some(10081), Some(95.0), Some(299)));
-    warnings.extend(state.take_warnings(Some(95.0), Some(10079), Some(10.0), Some(299)));
+    warnings.extend(state.take_warnings(
+        Some(10.0),
+        Some(10079),
+        Some(55.0),
+        Some(299),
+        /*suppressed_threshold*/ None,
+    ));
+    warnings.extend(state.take_warnings(
+        Some(55.0),
+        Some(10081),
+        Some(10.0),
+        Some(299),
+        /*suppressed_threshold*/ None,
+    ));
+    warnings.extend(state.take_warnings(
+        Some(10.0),
+        Some(10081),
+        Some(80.0),
+        Some(299),
+        /*suppressed_threshold*/ None,
+    ));
+    warnings.extend(state.take_warnings(
+        Some(80.0),
+        Some(10081),
+        Some(10.0),
+        Some(299),
+        /*suppressed_threshold*/ None,
+    ));
+    warnings.extend(state.take_warnings(
+        Some(10.0),
+        Some(10081),
+        Some(95.0),
+        Some(299),
+        /*suppressed_threshold*/ None,
+    ));
+    warnings.extend(state.take_warnings(
+        Some(95.0),
+        Some(10079),
+        Some(10.0),
+        Some(299),
+        /*suppressed_threshold*/ None,
+    ));
 
     assert_eq!(
         warnings,
@@ -241,6 +277,7 @@ async fn test_rate_limit_warnings_monthly() {
         Some(43199),
         /*primary_used_percent*/ None,
         /*primary_window_minutes*/ None,
+        /*suppressed_threshold*/ None,
     ));
     assert_eq!(
         warnings,
