@@ -64,6 +64,7 @@ pub struct ConfigLayerEntry {
     pub raw_toml: Option<String>,
     pub version: String,
     pub disabled_reason: Option<String>,
+    pub ignored_project_config_keys: Vec<String>,
 }
 
 impl ConfigLayerEntry {
@@ -75,6 +76,7 @@ impl ConfigLayerEntry {
             raw_toml: None,
             version,
             disabled_reason: None,
+            ignored_project_config_keys: Vec::new(),
         }
     }
 
@@ -86,6 +88,7 @@ impl ConfigLayerEntry {
             raw_toml: Some(raw_toml),
             version,
             disabled_reason: None,
+            ignored_project_config_keys: Vec::new(),
         }
     }
 
@@ -101,7 +104,13 @@ impl ConfigLayerEntry {
             raw_toml: None,
             version,
             disabled_reason: Some(disabled_reason.into()),
+            ignored_project_config_keys: Vec::new(),
         }
+    }
+
+    pub fn with_ignored_project_config_keys(mut self, ignored_keys: Vec<String>) -> Self {
+        self.ignored_project_config_keys = ignored_keys;
+        self
     }
 
     pub fn is_disabled(&self) -> bool {

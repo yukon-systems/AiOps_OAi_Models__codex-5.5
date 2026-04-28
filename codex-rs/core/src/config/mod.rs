@@ -7,6 +7,7 @@ use crate::unified_exec::MIN_EMPTY_YIELD_TIME_MS;
 use crate::windows_sandbox::WindowsSandboxLevelExt;
 use crate::windows_sandbox::resolve_windows_sandbox_mode;
 use crate::windows_sandbox::resolve_windows_sandbox_private_desktop;
+use codex_app_server_protocol::ConfigLayerSource;
 use codex_config::CloudRequirementsLoader;
 use codex_config::ConfigLayerStack;
 use codex_config::ConfigLayerStackOrdering;
@@ -1591,6 +1592,36 @@ pub fn resolve_oss_provider(
     }
 }
 
+fn push_project_config_ignored_key_warnings(
+    config_layer_stack: &ConfigLayerStack,
+    startup_warnings: &mut Vec<String>,
+) {
+    for layer in config_layer_stack.get_layers(
+        ConfigLayerStackOrdering::LowestPrecedenceFirst,
+        /*include_disabled*/ false,
+    ) {
+        if layer.ignored_project_config_keys.is_empty() {
+            continue;
+        }
+
+        let ConfigLayerSource::Project { dot_codex_folder } = &layer.name else {
+            continue;
+        };
+
+        let config_path = dot_codex_folder.join(CONFIG_TOML_FILE);
+        let ignored_keys = layer.ignored_project_config_keys.join(", ");
+        startup_warnings.push(format!(
+            concat!(
+                "Ignored unsupported project-local config keys in {}: {}. ",
+                "If you want these settings to apply, manually set them in your ",
+                "user-level config.toml."
+            ),
+            config_path.display(),
+            ignored_keys
+        ));
+    }
+}
+
 /// Resolve the web search mode from explicit config and feature flags.
 fn resolve_web_search_mode(
     config_toml: &ConfigToml,
@@ -1788,6 +1819,7 @@ impl Config {
         let user_instructions = AgentsMdManager::load_global_instructions(Some(&codex_home))
             .map(|loaded| loaded.contents);
         let mut startup_warnings = Vec::new();
+        push_project_config_ignored_key_warnings(&config_layer_stack, &mut startup_warnings);
 
         // Destructure ConfigOverrides fully to ensure all overrides are applied.
         let ConfigOverrides {
