@@ -934,6 +934,62 @@
       ],
       "type": "object"
     },
+    "CurrentUsageLimitNudgeState": {
+      "oneOf": [
+        {
+          "properties": {
+            "type": {
+              "enum": [
+                "unknown"
+              ],
+              "title": "UnknownCurrentUsageLimitNudgeStateType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "title": "UnknownCurrentUsageLimitNudgeState",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "type": {
+              "enum": [
+                "inactive"
+              ],
+              "title": "InactiveCurrentUsageLimitNudgeStateType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "title": "InactiveCurrentUsageLimitNudgeState",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "nudge": {
+              "$ref": "#/definitions/UsageLimitNudge"
+            },
+            "type": {
+              "enum": [
+                "active"
+              ],
+              "title": "ActiveCurrentUsageLimitNudgeStateType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "nudge",
+            "type"
+          ],
+          "title": "ActiveCurrentUsageLimitNudgeState",
+          "type": "object"
+        }
+      ]
+    },
     "DeprecationNoticeNotification": {
       "properties": {
         "details": {
@@ -2422,6 +2478,9 @@
             }
           ]
         },
+        "currentUsageLimitNudge": {
+          "$ref": "#/definitions/CurrentUsageLimitNudgeState"
+        },
         "limitId": {
           "type": [
             "string",
@@ -2475,6 +2534,9 @@
           ]
         }
       },
+      "required": [
+        "currentUsageLimitNudge"
+      ],
       "type": "object"
     },
     "RateLimitWindow": {
@@ -4340,6 +4402,34 @@
         "interrupted",
         "failed",
         "inProgress"
+      ],
+      "type": "string"
+    },
+    "UsageLimitNudge": {
+      "properties": {
+        "copyVariant": {
+          "$ref": "#/definitions/UsageLimitNudgeCopyVariant"
+        },
+        "key": {
+          "type": "string"
+        },
+        "threshold": {
+          "format": "uint8",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "copyVariant",
+        "key",
+        "threshold"
+      ],
+      "type": "object"
+    },
+    "UsageLimitNudgeCopyVariant": {
+      "enum": [
+        "add_credits",
+        "upgrade"
       ],
       "type": "string"
     },

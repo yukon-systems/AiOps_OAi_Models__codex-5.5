@@ -2125,6 +2125,52 @@ pub struct RateLimitSnapshot {
     pub credits: Option<CreditsSnapshot>,
     pub plan_type: Option<crate::account::PlanType>,
     pub rate_limit_reached_type: Option<RateLimitReachedType>,
+    #[serde(
+        default,
+        deserialize_with = "current_usage_limit_nudge_serde::deserialize",
+        serialize_with = "current_usage_limit_nudge_serde::serialize",
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[ts(optional, as = "Option<Option<UsageLimitNudgePayload>>")]
+    pub current_usage_limit_nudge: Option<Option<UsageLimitNudgePayload>>,
+}
+
+impl RateLimitSnapshot {
+    pub fn current_usage_limit_nudge_state(&self) -> CurrentUsageLimitNudgeState {
+        match &self.current_usage_limit_nudge {
+            None => CurrentUsageLimitNudgeState::Unknown,
+            Some(None) => CurrentUsageLimitNudgeState::Inactive,
+            Some(Some(nudge)) => UsageLimitNudge::from_payload(nudge)
+                .map(CurrentUsageLimitNudgeState::Active)
+                .unwrap_or(CurrentUsageLimitNudgeState::Inactive),
+        }
+    }
+}
+
+mod current_usage_limit_nudge_serde {
+    use serde::Deserializer;
+    use serde::Serializer;
+
+    use super::UsageLimitNudgePayload;
+
+    pub(crate) fn deserialize<'de, D>(
+        deserializer: D,
+    ) -> Result<Option<Option<UsageLimitNudgePayload>>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        serde_with::rust::double_option::deserialize(deserializer)
+    }
+
+    pub(crate) fn serialize<S>(
+        value: &Option<Option<UsageLimitNudgePayload>>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serde_with::rust::double_option::serialize(value, serializer)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema, TS)]
@@ -2136,6 +2182,68 @@ pub enum RateLimitReachedType {
     WorkspaceMemberCreditsDepleted,
     WorkspaceOwnerUsageLimitReached,
     WorkspaceMemberUsageLimitReached,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, JsonSchema, TS)]
+pub struct UsageLimitNudgePayload {
+    pub key: String,
+    pub threshold: u8,
+    pub copy_variant: UsageLimitNudgeCopyVariant,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UsageLimitNudge {
+    pub key: String,
+    pub threshold: UsageLimitNudgeThreshold,
+    pub copy_variant: UsageLimitNudgeCopyVariant,
+}
+
+impl UsageLimitNudge {
+    fn from_payload(payload: &UsageLimitNudgePayload) -> Option<Self> {
+        Some(Self {
+            key: payload.key.clone(),
+            threshold: UsageLimitNudgeThreshold::from_percent(payload.threshold)?,
+            copy_variant: payload.copy_variant,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CurrentUsageLimitNudgeState {
+    Unknown,
+    Inactive,
+    Active(UsageLimitNudge),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UsageLimitNudgeThreshold {
+    Percent75,
+    Percent90,
+}
+
+impl UsageLimitNudgeThreshold {
+    fn from_percent(percent: u8) -> Option<Self> {
+        match percent {
+            75 => Some(Self::Percent75),
+            90 => Some(Self::Percent90),
+            _ => None,
+        }
+    }
+
+    pub fn as_percent(self) -> u8 {
+        match self {
+            Self::Percent75 => 75,
+            Self::Percent90 => 90,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case")]
+pub enum UsageLimitNudgeCopyVariant {
+    AddCredits,
+    Upgrade,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema, TS)]
