@@ -4376,7 +4376,7 @@ impl ChatWidget {
                     command,
                     parsed,
                     source,
-                    None,
+                    /*interaction_input*/ None,
                     self.config.animations,
                 );
                 let completed = orphan.complete_call(&id, output, duration);
@@ -4393,7 +4393,7 @@ impl ChatWidget {
                     command,
                     parsed,
                     source,
-                    None,
+                    /*interaction_input*/ None,
                     self.config.animations,
                 );
                 let completed = cell.complete_call(&id, output, duration);
@@ -4597,7 +4597,7 @@ impl ChatWidget {
                 command.clone(),
                 parsed_cmd.clone(),
                 source,
-                None,
+                /*interaction_input*/ None,
             )
         {
             *cell = new_exec;
@@ -4610,7 +4610,7 @@ impl ChatWidget {
                 command,
                 parsed_cmd,
                 source,
-                None,
+                /*interaction_input*/ None,
                 self.config.animations,
             )));
             self.bump_active_cell_revision();
