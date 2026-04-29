@@ -975,11 +975,6 @@ impl PluginsManager {
         let mut result = RemotePluginSyncResult::default();
         let mut remote_installed_plugin_keys = HashSet::<String>::new();
         for plugin in remote_plugins {
-            if !is_remote_marketplace_name(&plugin.marketplace_name) {
-                return Err(PluginRemoteSyncError::UnknownRemoteMarketplace {
-                    marketplace_name: plugin.marketplace_name,
-                });
-            }
             let plugin_id =
                 PluginId::new(plugin.plugin_name.clone(), plugin.marketplace_name.clone())?;
             let plugin_key = plugin_id.as_key();
