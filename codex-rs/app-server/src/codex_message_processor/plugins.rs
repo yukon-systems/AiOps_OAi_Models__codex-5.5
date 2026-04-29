@@ -98,8 +98,10 @@ impl CodexMessageProcessor {
         };
 
         if config.features.enabled(Feature::RemotePlugin) {
-            plugins_manager
-                .maybe_start_remote_plugin_sync(config.clone(), self.auth_manager.clone());
+            plugins_manager.maybe_start_remote_installed_plugin_sync(
+                config.clone(),
+                self.auth_manager.clone(),
+            );
             let remote_plugin_service_config = RemotePluginServiceConfig {
                 chatgpt_base_url: config.chatgpt_base_url.clone(),
             };

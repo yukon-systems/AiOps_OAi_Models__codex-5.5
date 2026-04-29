@@ -1,4 +1,5 @@
 use super::PluginLoadOutcome;
+use super::startup_sync::start_startup_remote_plugin_sync_once;
 use crate::SkillMetadata;
 use crate::config::Config;
 use crate::config::edit::ConfigEdit;
@@ -33,6 +34,7 @@ use codex_core_plugins::marketplace::ResolvedMarketplacePlugin;
 use codex_core_plugins::marketplace::find_installable_marketplace_plugin;
 use codex_core_plugins::marketplace::find_marketplace_plugin;
 use codex_core_plugins::marketplace::list_marketplaces;
+use codex_core_plugins::marketplace::load_marketplace;
 use codex_core_plugins::marketplace::plugin_interface_with_marketplace_category;
 use codex_core_plugins::marketplace_upgrade::ConfiguredMarketplaceUpgradeError;
 use codex_core_plugins::marketplace_upgrade::ConfiguredMarketplaceUpgradeOutcome;
@@ -724,7 +726,224 @@ impl PluginsManager {
         Ok(())
     }
 
-    pub async fn sync_plugins_from_remote(
+    pub(crate) async fn sync_curated_plugins_from_legacy_remote(
+        &self,
+        config: &Config,
+        auth: Option<&CodexAuth>,
+        additive_only: bool,
+    ) -> Result<RemotePluginSyncResult, PluginRemoteSyncError> {
+        let _remote_sync_guard = self.remote_sync_lock.acquire().await.map_err(|_| {
+            PluginRemoteSyncError::Config(anyhow::anyhow!("remote plugin sync semaphore closed"))
+        })?;
+
+        if !config.features.enabled(Feature::Plugins) {
+            return Ok(RemotePluginSyncResult::default());
+        }
+
+        info!("starting legacy curated plugin sync from remote state");
+        let remote_plugins = codex_core_plugins::remote_legacy::fetch_remote_plugin_status(
+            &remote_plugin_service_config(config),
+            auth,
+        )
+        .await
+        .map_err(PluginRemoteSyncError::from)?;
+        let configured_plugins = configured_plugins_from_stack(&config.config_layer_stack);
+        let curated_marketplace_root = curated_plugins_repo_path(self.codex_home.as_path());
+        let curated_marketplace_path = AbsolutePathBuf::try_from(
+            curated_marketplace_root.join(".agents/plugins/marketplace.json"),
+        )
+        .map_err(|_| PluginRemoteSyncError::LocalMarketplaceNotFound)?;
+        let curated_marketplace = match load_marketplace(&curated_marketplace_path) {
+            Ok(marketplace) => marketplace,
+            Err(MarketplaceError::MarketplaceNotFound { .. }) => {
+                return Err(PluginRemoteSyncError::LocalMarketplaceNotFound);
+            }
+            Err(err) => return Err(err.into()),
+        };
+
+        let marketplace_name = curated_marketplace.name.clone();
+        let curated_plugin_version = read_curated_plugins_sha(self.codex_home.as_path())
+            .ok_or_else(|| {
+                PluginStoreError::Invalid(
+                    "local curated marketplace sha is not available".to_string(),
+                )
+            })?;
+        let cache_plugin_version = curated_plugin_cache_version(&curated_plugin_version);
+        let mut local_plugins = Vec::<(
+            String,
+            PluginId,
+            AbsolutePathBuf,
+            Option<bool>,
+            Option<String>,
+            bool,
+        )>::new();
+        let mut local_plugin_names = HashSet::new();
+        for plugin in curated_marketplace.plugins {
+            let plugin_name = plugin.name;
+            if !local_plugin_names.insert(plugin_name.clone()) {
+                warn!(
+                    plugin = plugin_name,
+                    marketplace = %marketplace_name,
+                    "ignoring duplicate local plugin entry during legacy curated plugin sync"
+                );
+                continue;
+            }
+
+            let plugin_id = PluginId::new(plugin_name.clone(), marketplace_name.clone())?;
+            let plugin_key = plugin_id.as_key();
+            let source_path = match plugin.source {
+                MarketplacePluginSource::Local { path } => path,
+                MarketplacePluginSource::Git { .. } => {
+                    warn!(
+                        plugin = plugin_name,
+                        marketplace = %marketplace_name,
+                        "skipping remote plugin source during legacy curated plugin sync"
+                    );
+                    continue;
+                }
+            };
+            let current_enabled = configured_plugins
+                .get(&plugin_key)
+                .map(|plugin| plugin.enabled);
+            let installed_version = self.store.active_plugin_version(&plugin_id);
+            let product_allowed =
+                self.restriction_product_matches(plugin.policy.products.as_deref());
+            local_plugins.push((
+                plugin_name,
+                plugin_id,
+                source_path,
+                current_enabled,
+                installed_version,
+                product_allowed,
+            ));
+        }
+
+        let mut missing_remote_plugins = Vec::<String>::new();
+        let mut remote_installed_plugin_names = HashSet::<String>::new();
+        for plugin in remote_plugins {
+            if plugin.marketplace_name != marketplace_name {
+                return Err(PluginRemoteSyncError::UnknownRemoteMarketplace {
+                    marketplace_name: plugin.marketplace_name,
+                });
+            }
+            if !local_plugin_names.contains(&plugin.name) {
+                missing_remote_plugins.push(plugin.name);
+                continue;
+            }
+            if !plugin.enabled {
+                continue;
+            }
+            if !remote_installed_plugin_names.insert(plugin.name.clone()) {
+                return Err(PluginRemoteSyncError::DuplicateRemotePlugin {
+                    plugin_name: plugin.name,
+                });
+            }
+        }
+
+        let mut config_edits = Vec::new();
+        let mut installs = Vec::new();
+        let mut uninstalls = Vec::new();
+        let mut result = RemotePluginSyncResult::default();
+        let remote_plugin_count = remote_installed_plugin_names.len();
+        let local_plugin_count = local_plugins.len();
+        if !missing_remote_plugins.is_empty() {
+            let sample_missing_plugins = missing_remote_plugins
+                .iter()
+                .take(10)
+                .cloned()
+                .collect::<Vec<_>>();
+            warn!(
+                marketplace = %marketplace_name,
+                missing_remote_plugin_count = missing_remote_plugins.len(),
+                missing_remote_plugin_examples = ?sample_missing_plugins,
+                "ignoring remote plugins missing from local curated marketplace during legacy sync"
+            );
+        }
+
+        for (
+            plugin_name,
+            plugin_id,
+            source_path,
+            current_enabled,
+            installed_version,
+            product_allowed,
+        ) in local_plugins
+        {
+            let plugin_key = plugin_id.as_key();
+            let is_installed = installed_version.is_some();
+            if !product_allowed {
+                continue;
+            }
+            if remote_installed_plugin_names.contains(&plugin_name) {
+                if !is_installed {
+                    installs.push((source_path, plugin_id.clone(), cache_plugin_version.clone()));
+                    result.installed_plugin_ids.push(plugin_key.clone());
+                }
+
+                if current_enabled != Some(true) {
+                    result.enabled_plugin_ids.push(plugin_key.clone());
+                    config_edits.push(ConfigEdit::SetPath {
+                        segments: vec!["plugins".to_string(), plugin_key, "enabled".to_string()],
+                        value: value(true),
+                    });
+                }
+            } else if !additive_only {
+                if is_installed {
+                    uninstalls.push(plugin_id);
+                }
+                if is_installed || current_enabled.is_some() {
+                    result.uninstalled_plugin_ids.push(plugin_key.clone());
+                }
+                if current_enabled.is_some() {
+                    config_edits.push(ConfigEdit::ClearPath {
+                        segments: vec!["plugins".to_string(), plugin_key],
+                    });
+                }
+            }
+        }
+
+        let store = self.store.clone();
+        let store_result = tokio::task::spawn_blocking(move || {
+            for (source_path, plugin_id, plugin_version) in installs {
+                store.install_with_version(source_path, plugin_id, plugin_version)?;
+            }
+            for plugin_id in uninstalls {
+                store.uninstall(&plugin_id)?;
+            }
+            Ok::<(), PluginStoreError>(())
+        })
+        .await
+        .map_err(PluginRemoteSyncError::join)?;
+        if let Err(err) = store_result {
+            self.clear_cache();
+            return Err(err.into());
+        }
+
+        let config_result = if config_edits.is_empty() {
+            Ok(())
+        } else {
+            ConfigEditsBuilder::new(&self.codex_home)
+                .with_edits(config_edits)
+                .apply()
+                .await
+        };
+        self.clear_cache();
+        config_result?;
+
+        info!(
+            remote_plugin_count,
+            local_plugin_count,
+            installed_plugin_ids = ?result.installed_plugin_ids,
+            enabled_plugin_ids = ?result.enabled_plugin_ids,
+            disabled_plugin_ids = ?result.disabled_plugin_ids,
+            uninstalled_plugin_ids = ?result.uninstalled_plugin_ids,
+            "completed legacy curated plugin sync from remote state"
+        );
+
+        Ok(result)
+    }
+
+    pub async fn sync_remote_installed_plugins(
         &self,
         config: &Config,
         auth: Option<&CodexAuth>,
@@ -1151,7 +1370,13 @@ impl PluginsManager {
                     warn!("failed to start configured marketplace auto-upgrade task: {err}");
                 }
             }
-            self.maybe_start_remote_plugin_sync(config.clone(), auth_manager.clone());
+            start_startup_remote_plugin_sync_once(
+                Arc::clone(self),
+                self.codex_home.clone(),
+                config.clone(),
+                auth_manager.clone(),
+            );
+            self.maybe_start_remote_installed_plugin_sync(config.clone(), auth_manager.clone());
 
             let config = config.clone();
             let manager = Arc::clone(self);
@@ -1409,7 +1634,7 @@ impl PluginsManager {
         (installed_plugins, enabled_plugins)
     }
 
-    pub fn maybe_start_remote_plugin_sync(
+    pub fn maybe_start_remote_installed_plugin_sync(
         self: &Arc<Self>,
         config: Config,
         auth_manager: Arc<AuthManager>,
@@ -1465,7 +1690,7 @@ impl PluginsManager {
 
             let auth = auth_manager.auth().await;
             match self
-                .sync_plugins_from_remote(&config, auth.as_ref(), /*additive_only*/ false)
+                .sync_remote_installed_plugins(&config, auth.as_ref(), /*additive_only*/ false)
                 .await
             {
                 Ok(sync_result) => {
@@ -1475,13 +1700,13 @@ impl PluginsManager {
                         enabled_plugin_ids = ?sync_result.enabled_plugin_ids,
                         disabled_plugin_ids = ?sync_result.disabled_plugin_ids,
                         uninstalled_plugin_ids = ?sync_result.uninstalled_plugin_ids,
-                        "completed background remote plugin sync"
+                        "completed background remote installed plugin sync"
                     );
                 }
                 Err(err) => {
                     warn!(
                         error = %err,
-                        "background remote plugin sync failed"
+                        "background remote installed plugin sync failed"
                     );
                 }
             }

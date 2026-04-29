@@ -1809,7 +1809,7 @@ enabled = true
 }
 
 #[tokio::test]
-async fn sync_plugins_from_remote_returns_default_when_feature_disabled() {
+async fn sync_remote_installed_plugins_returns_default_when_feature_disabled() {
     let tmp = tempfile::tempdir().unwrap();
     write_file(
         &tmp.path().join(CONFIG_TOML_FILE),
@@ -1820,7 +1820,7 @@ plugins = false
 
     let config = load_config(tmp.path(), tmp.path()).await;
     let outcome = PluginsManager::new(tmp.path().to_path_buf())
-        .sync_plugins_from_remote(&config, /*auth*/ None, /*additive_only*/ false)
+        .sync_remote_installed_plugins(&config, /*auth*/ None, /*additive_only*/ false)
         .await
         .unwrap();
 
@@ -2306,7 +2306,7 @@ enabled = true
 }
 
 #[tokio::test]
-async fn sync_plugins_from_remote_reconciles_remote_cache_and_config() {
+async fn sync_remote_installed_plugins_reconciles_remote_cache_and_config() {
     let tmp = tempfile::tempdir().unwrap();
     write_plugin_with_version(
         &tmp.path().join("plugins/cache/chatgpt-global"),
@@ -2377,7 +2377,7 @@ enabled = true
     config.chatgpt_base_url = format!("{}/backend-api/", server.uri());
     let manager = PluginsManager::new(tmp.path().to_path_buf());
     let result = manager
-        .sync_plugins_from_remote(
+        .sync_remote_installed_plugins(
             &config,
             Some(&CodexAuth::create_dummy_chatgpt_auth_for_testing()),
             /*additive_only*/ false,
@@ -2421,7 +2421,7 @@ enabled = true
 }
 
 #[tokio::test]
-async fn sync_plugins_from_remote_additive_only_keeps_existing_remote_plugins() {
+async fn sync_remote_installed_plugins_additive_only_keeps_existing_remote_plugins() {
     let tmp = tempfile::tempdir().unwrap();
     write_plugin(
         &tmp.path().join("plugins/cache/chatgpt-global"),
@@ -2448,7 +2448,7 @@ enabled = true
     config.chatgpt_base_url = format!("{}/backend-api/", server.uri());
     let manager = PluginsManager::new(tmp.path().to_path_buf());
     let result = manager
-        .sync_plugins_from_remote(
+        .sync_remote_installed_plugins(
             &config,
             Some(&CodexAuth::create_dummy_chatgpt_auth_for_testing()),
             /*additive_only*/ true,
@@ -2467,7 +2467,7 @@ enabled = true
 }
 
 #[tokio::test]
-async fn sync_plugins_from_remote_keeps_existing_plugins_when_fetch_fails() {
+async fn sync_remote_installed_plugins_keeps_existing_plugins_when_fetch_fails() {
     let tmp = tempfile::tempdir().unwrap();
     write_plugin(
         &tmp.path().join("plugins/cache/chatgpt-global"),
@@ -2500,7 +2500,7 @@ enabled = true
     config.chatgpt_base_url = format!("{}/backend-api/", server.uri());
     let manager = PluginsManager::new(tmp.path().to_path_buf());
     let err = manager
-        .sync_plugins_from_remote(
+        .sync_remote_installed_plugins(
             &config,
             Some(&CodexAuth::create_dummy_chatgpt_auth_for_testing()),
             /*additive_only*/ false,
