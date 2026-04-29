@@ -422,7 +422,7 @@ impl CodexMessageProcessor {
             chatgpt_base_url: config.chatgpt_base_url.clone(),
         };
         let remote_detail =
-            codex_core_plugins::remote::fetch_remote_plugin_detail_with_download_urls(
+            codex_core_plugins::remote::fetch_remote_plugin_detail_for_bundle_install(
                 &remote_plugin_service_config,
                 auth.as_ref(),
                 &remote_marketplace_name,

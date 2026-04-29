@@ -962,7 +962,7 @@ impl PluginsManager {
 
         info!("starting remote plugin sync");
         let remote_plugins =
-            codex_core_plugins::remote::fetch_remote_installed_plugins_with_download_urls(
+            codex_core_plugins::remote::fetch_remote_installed_plugins_for_cache_sync(
                 &remote_plugin_service_config(config),
                 auth,
             )

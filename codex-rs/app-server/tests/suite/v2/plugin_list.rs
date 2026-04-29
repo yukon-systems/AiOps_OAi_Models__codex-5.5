@@ -1063,7 +1063,7 @@ async fn app_server_startup_remote_plugin_sync_downloads_remote_installed_plugin
         .path()
         .join("plugins/cache/chatgpt-global/linear/1.2.3");
 
-    let mut mcp = McpProcess::new_with_env_and_plugin_startup_tasks(
+    let mut mcp = McpProcess::new_with_env_and_plugin_startup_tasks_enabled(
         codex_home.path(),
         &[(TEST_ALLOW_HTTP_REMOTE_PLUGIN_BUNDLE_DOWNLOADS, Some("1"))],
     )
@@ -1156,7 +1156,7 @@ enabled = true
         .path()
         .join("plugins/cache/chatgpt-global/linear/1.2.3");
 
-    let mut mcp = McpProcess::new_with_env_and_plugin_startup_tasks(
+    let mut mcp = McpProcess::new_with_env_and_plugin_startup_tasks_enabled(
         codex_home.path(),
         &[(TEST_ALLOW_HTTP_REMOTE_PLUGIN_BUNDLE_DOWNLOADS, Some("1"))],
     )
@@ -1550,7 +1550,7 @@ async fn plugin_list_uses_warmed_featured_plugin_ids_cache_on_first_request() ->
         .mount(&server)
         .await;
 
-    let mut mcp = McpProcess::new_with_plugin_startup_tasks(codex_home.path()).await?;
+    let mut mcp = McpProcess::new_with_plugin_startup_tasks_enabled(codex_home.path()).await?;
     timeout(DEFAULT_TIMEOUT, mcp.initialize()).await??;
     wait_for_featured_plugin_request_count(&server, /*expected_count*/ 1).await?;
 

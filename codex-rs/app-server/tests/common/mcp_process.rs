@@ -118,11 +118,11 @@ impl McpProcess {
         Self::new_with_env(codex_home, &[(DISABLE_MANAGED_CONFIG_ENV_VAR, Some("1"))]).await
     }
 
-    pub async fn new_with_plugin_startup_tasks(codex_home: &Path) -> anyhow::Result<Self> {
+    pub async fn new_with_plugin_startup_tasks_enabled(codex_home: &Path) -> anyhow::Result<Self> {
         Self::new_with_env_and_args(codex_home, &[], &[]).await
     }
 
-    pub async fn new_with_env_and_plugin_startup_tasks(
+    pub async fn new_with_env_and_plugin_startup_tasks_enabled(
         codex_home: &Path,
         env_overrides: &[(&str, Option<&str>)],
     ) -> anyhow::Result<Self> {
