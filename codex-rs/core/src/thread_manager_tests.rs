@@ -392,6 +392,7 @@ async fn resume_and_fork_do_not_restore_thread_environments_from_rollout() {
         SessionSource::Exec,
         CollaborationModesConfig::default(),
         Arc::new(codex_exec_server::EnvironmentManager::default_for_tests()),
+        thread_store_from_config(&config),
         /*analytics_events_client*/ None,
     );
     let selected_cwd =
@@ -489,6 +490,7 @@ async fn new_uses_active_provider_for_model_refresh() {
         SessionSource::Exec,
         CollaborationModesConfig::default(),
         Arc::new(codex_exec_server::EnvironmentManager::default_for_tests()),
+        thread_store_from_config(&config),
         /*analytics_events_client*/ None,
     );
 
@@ -700,6 +702,7 @@ async fn interrupted_fork_snapshot_does_not_synthesize_turn_id_for_legacy_histor
         SessionSource::Exec,
         CollaborationModesConfig::default(),
         Arc::new(codex_exec_server::EnvironmentManager::default_for_tests()),
+        thread_store_from_config(&config),
         /*analytics_events_client*/ None,
     );
 
@@ -802,6 +805,7 @@ async fn interrupted_fork_snapshot_preserves_explicit_turn_id() {
         SessionSource::Exec,
         CollaborationModesConfig::default(),
         Arc::new(codex_exec_server::EnvironmentManager::default_for_tests()),
+        thread_store_from_config(&config),
         /*analytics_events_client*/ None,
     );
 
@@ -893,6 +897,7 @@ async fn interrupted_fork_snapshot_uses_persisted_mid_turn_history_without_live_
         SessionSource::Exec,
         CollaborationModesConfig::default(),
         Arc::new(codex_exec_server::EnvironmentManager::default_for_tests()),
+        thread_store_from_config(&config),
         /*analytics_events_client*/ None,
     );
 
@@ -1029,6 +1034,7 @@ async fn resumed_thread_activates_paused_goal_and_continues_on_request() -> anyh
         SessionSource::Exec,
         CollaborationModesConfig::default(),
         Arc::new(codex_exec_server::EnvironmentManager::default_for_tests()),
+        thread_store_from_config(&config),
         /*analytics_events_client*/ None,
     );
 
